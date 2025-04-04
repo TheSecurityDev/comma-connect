@@ -122,11 +122,10 @@ const RoutePathMap: Component<{
     onCleanup(() => m.remove())
   })
 
-  // Update hitbox polyline when route changes and fit to bounds
+  // Fit to bounds when loaded
   createEffect(() => {
     if (!hitboxPolyline) return
-    hitboxPolyline.setLatLngs(mapCoords())
-    map()?.fitBounds(hitboxPolyline.getBounds(), { padding: [20, 20] }) // Set initial view so route is fully visible
+    map()?.fitBounds(hitboxPolyline.getBounds(), { padding: [20, 20] })
   })
 
   // Update map interactivity
