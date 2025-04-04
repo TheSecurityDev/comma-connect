@@ -1,4 +1,4 @@
-import { createMemo, createResource, lazy, Match, Show, Suspense, SuspenseList, Switch } from 'solid-js'
+import { createMemo, createResource, lazy, Match, Show, Suspense, Switch } from 'solid-js'
 import type { Component, JSXElement, VoidComponent } from 'solid-js'
 import { Navigate, type RouteSectionProps, useLocation } from '@solidjs/router'
 import clsx from 'clsx'
@@ -87,16 +87,14 @@ const DashboardLayout: Component<{
     <div class="relative size-full overflow-hidden">
       <div
         class={clsx(
-          'mx-auto size-full max-w-[1560px] md:grid md:grid-cols-2 lg:gap-2',
+          'mx-auto size-full max-w-[1600px] md:grid md:grid-cols-2 lg:gap-2',
           // Flex layout for mobile with horizontal transition
           'flex transition-transform duration-300 ease-in-out',
           props.paneTwoContent ? '-translate-x-full md:translate-x-0' : 'translate-x-0',
         )}
       >
-        <SuspenseList revealOrder="forwards">
-          <div class="min-w-full overflow-y-scroll">{props.paneOne}</div>
-          <div class="min-w-full overflow-y-scroll">{props.paneTwo}</div>
-        </SuspenseList>
+        <div class="min-w-full overflow-y-scroll">{props.paneOne}</div>
+        <div class="min-w-full overflow-y-scroll">{props.paneTwo}</div>
       </div>
     </div>
   )
@@ -106,17 +104,18 @@ const Dashboard: Component<RouteSectionProps> = () => {
   const location = useLocation()
   const urlState = createMemo(() => {
     const parts = location.pathname.split('/').slice(1).filter(Boolean)
+    const startTime = parts[2] ? Math.max(Number(parts[2]), 0) : 0
+    const endTime = parts[3] ? Math.max(Number(parts[3]), startTime + 1) : undefined
     return {
       dongleId: parts[0] as string | undefined,
       dateStr: parts[1] as string | undefined,
-      startTime: parts[2] ? Number(parts[2]) : 0,
+      startTime: startTime,
+      endTime: endTime,
     }
   })
 
   const [devices] = createResource(getDevices, { initialValue: [] })
   const [profile] = createResource(getProfile)
-
-  const currentDevice = () => devices()?.find((device) => device.dongle_id === urlState().dongleId)
 
   const getDefaultDongleId = () => {
     // Do not redirect if dongle ID already selected
@@ -136,7 +135,7 @@ const Dashboard: Component<RouteSectionProps> = () => {
         <Match when={urlState().dongleId} keyed>
           {(dongleId) => (
             <DashboardLayout
-              paneOne={<DeviceActivity dongleId={dongleId} shared={!currentDevice()} />}
+              paneOne={<DeviceActivity dongleId={dongleId} />}
               paneTwo={
                 <Switch
                   fallback={
@@ -147,10 +146,12 @@ const Dashboard: Component<RouteSectionProps> = () => {
                   }
                 >
                   <Match when={urlState().dateStr === 'settings' || urlState().dateStr === 'prime'}>
-                    <SettingsActivity dongleId={dongleId} shared={!currentDevice()} />
+                    <SettingsActivity dongleId={dongleId} />
                   </Match>
-                  <Match when={urlState().dateStr}>
-                    {(dateStr) => <RouteActivity dongleId={dongleId} dateStr={dateStr()} startTime={urlState().startTime} />}
+                  <Match when={urlState().dateStr} keyed>
+                    {(dateStr) => (
+                      <RouteActivity dongleId={dongleId} dateStr={dateStr} startTime={urlState().startTime} endTime={urlState().endTime} />
+                    )}
                   </Match>
                 </Switch>
               }

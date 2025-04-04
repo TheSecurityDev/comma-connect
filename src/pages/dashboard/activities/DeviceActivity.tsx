@@ -1,8 +1,8 @@
 import clsx from 'clsx'
-import { createMemo, createResource, createSignal, For, Show, Suspense } from 'solid-js'
+import { createResource, createSignal, For, Show, Suspense } from 'solid-js'
 import type { VoidComponent } from 'solid-js'
 
-import { getDevice } from '~/api/devices'
+import { getDevice, SHARED_DEVICE } from '~/api/devices'
 import { ATHENA_URL } from '~/api/config'
 import { getAccessToken } from '~/api/auth/client'
 
@@ -12,14 +12,13 @@ import IconButton from '~/components/material/IconButton'
 import TopAppBar from '~/components/material/TopAppBar'
 import DeviceLocation from '~/components/DeviceLocation'
 import DeviceStatistics from '~/components/DeviceStatistics'
-import { getDeviceName } from '~/utils/device'
+import { deviceIsOnline, getDeviceName } from '~/utils/device'
 
 import RouteList from '../components/RouteList'
 import UploadQueue from '~/components/UploadQueue'
 
 type DeviceActivityProps = {
   dongleId: string
-  shared: boolean
 }
 
 interface SnapshotResponse {
@@ -32,7 +31,10 @@ interface SnapshotResponse {
 const DeviceActivity: VoidComponent<DeviceActivityProps> = (props) => {
   // TODO: device should be passed in from DeviceList
   const [device] = createResource(() => props.dongleId, getDevice)
-  const deviceName = createMemo(() => getDeviceName(device(), props.shared))
+  // Resource as source of another resource blocks component initialization
+  const deviceName = () => (device.latest ? getDeviceName(device.latest) : '')
+  // TODO: remove this. if we're listing the routes for a device you should always be a user, this is for viewing public routes which are being removed
+  const isDeviceUser = () => (device.loading ? true : device.latest?.is_owner || device.latest?.alias !== SHARED_DEVICE)
   const [queueVisible, setQueueVisible] = createSignal(false)
   const [snapshot, setSnapshot] = createSignal<{
     error: string | null
@@ -125,15 +127,24 @@ const DeviceActivity: VoidComponent<DeviceActivityProps> = (props) => {
             <DeviceLocation dongleId={props.dongleId} deviceName={deviceName()!} />
           </Suspense>
           <div class="flex items-center justify-between p-4">
-            <Suspense fallback={<div class="h-[32px] skeleton-loader size-full" />}>
-              {<div class="text-xl font-bold">{deviceName()}</div>}
+            <Suspense fallback={<div class="h-[32px] skeleton-loader size-full rounded-xs" />}>
+              <div class="inline-flex items-center gap-2">
+                <div
+                  class={clsx(
+                    'm-2 size-2 shrink-0 rounded-full',
+                    device.latest && deviceIsOnline(device.latest) ? 'bg-green-400' : 'bg-gray-400',
+                  )}
+                />
+
+                {<div class="text-xl font-bold">{deviceName()}</div>}
+              </div>
             </Suspense>
             <div class="flex gap-4">
               <IconButton name="camera" onClick={() => void takeSnapshot()} />
               <IconButton name="settings" href={`/${props.dongleId}/settings`} />
             </div>
           </div>
-          <Show when={!props.shared}>
+          <Show when={isDeviceUser()}>
             <DeviceStatistics dongleId={props.dongleId} class="p-4" />
             <Show when={queueVisible()}>
               <UploadQueue dongleId={props.dongleId} />
